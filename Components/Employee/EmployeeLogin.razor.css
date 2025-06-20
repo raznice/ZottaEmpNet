@@ -1,0 +1,27 @@
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #FFF8DC; /* Cornsilk */
+    font-family: 'Verdana', sans-serif;
+}
+
+.login-form {
+    background-color: white;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.login-form h2 {
+    color: #D2691E; /* Chocolate */
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.login-form button {
+    background-color: #D2691E; /* Chocolate */
+    color: white;
+    border: none;
+}

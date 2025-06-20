@@ -1,0 +1,83 @@
+@page "/employee/login"
+@inject NavigationManager Navigation
+@inject AuthService AuthService
+@using ZottaEmpNet.Services
+@using ZottaEmpNet.Models
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+
+
+<form onsubmit="@HandleLogin">
+    <div class="login-container">
+        <div class="login-form">
+            <h2>Admin Login</h2>
+            <!-- Remove the inner <form> tag here -->
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" @bind="Username" />
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" @bind="Password" />
+            </div>
+            <button type="submit">Login</button>
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+ <div class="alert alert-danger mt-3">@ErrorMessage</div>
+ }
+        </div>
+    </div>
+</form>
+
+@code {
+
+ private string Username = string.Empty;
+ private string Password = string.Empty;
+ private string ErrorMessage = string.Empty;
+
+    private void HandleLogin()
+    {
+        if (AuthService.EmployeeLogin(Username, Password))
+        {
+            Navigation.NavigateTo("/employee/dashboard");
+        }
+        else
+        {
+            ErrorMessage = "Nome utente o password non validi.";
+        }
+    }
+}
+
+<style>
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #FFF8DC; /* Cornsilk */
+        font-family: Verdana, sans-serif;
+    }
+
+    .login-form {
+        background-color: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+
+    .login-form h3 {
+        margin-bottom: 20px;
+        color: #D2691E; /* Chocolate */
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+        text-align: left;
+    }
+
+    .btn-primary {
+        background-color: #D2691E; /* Chocolate */
+        border-color: #D2691E; /* Chocolate */
+    }
+</style>

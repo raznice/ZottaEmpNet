@@ -1,0 +1,53 @@
+@page "/admin"
+@inject Services.AuthService AuthService
+@inject NavigationManager NavigationManager
+
+<form onsubmit="@HandleLogin">
+<div class="login-container">
+    <div class="login-form">
+        <h2>Admin Login</h2>
+        <form>
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" @bind="Username" />
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" @bind="Password" />
+            </div>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+</div>
+</form>
+
+<style>
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: #FFF8DC; /* Cornsilk */
+        font-family: Verdana, sans-serif;
+    }
+</style>
+@code {
+    private string Username { get; set; } = string.Empty;
+    private string Password { get; set; } = string.Empty;
+    private void HandleLogin()
+    {
+        bool isAuthenticated = AuthService.AdminLogin(Username, Password);
+
+        if (isAuthenticated)
+        {
+            NavigationManager.NavigateTo("/admin/dashboard");
+        }
+        else
+        {
+            // Handle failed login (e.g., display error message)
+            Console.WriteLine("Admin login failed.");
+        }
+    }
+}
+
+@namespace ZottaEmpNet.Components.Admin

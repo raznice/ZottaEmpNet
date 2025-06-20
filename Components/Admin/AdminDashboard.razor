@@ -1,0 +1,46 @@
+@page "/admin/dashboard"
+@using ZottaEmpNet.Services
+@using ZottaEmpNet.Models
+@inject AttendanceService AttendanceService
+ 
+<h3>Admin Dashboard</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Employee Username</th>
+            <th>Start Time</th>
+            <th>End Time</th>
+            <th>Activity Description</th>
+            <th>Photo</th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (allAttendanceRecords != null)
+        {
+            @foreach (var record in allAttendanceRecords)
+            {
+                <tr>
+                    <td>@record.EmployeeUsername</td>
+                    <td>@record.StartTime</td>
+                    <td>@record.EndTime</td>
+                    <td>@record.ActivityDescription</td>
+                    <td>
+                        @if (!string.IsNullOrEmpty(record.PhotoPath))
+                        {
+                            <img src="@record.PhotoPath" alt="Employee Photo" style="width: 50px; height: auto;" />
+                        }
+                    </td>
+                </tr>
+            }
+        }
+    </tbody>
+</table>
+@code {
+    private List<AttendanceRecord> allAttendanceRecords = new List<AttendanceRecord>();
+ 
+    protected override void OnInitialized()
+    {
+        allAttendanceRecords = AttendanceService.GetAllRecords();
+    }
+}

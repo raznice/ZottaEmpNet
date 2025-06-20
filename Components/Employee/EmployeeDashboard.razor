@@ -1,0 +1,232 @@
+@using ZottaEmpNet.Services
+@using ZottaEmpNet.Models
+@using Microsoft.JSInterop
+@using System.Timers
+@implements IDisposable
+@inject IJSRuntime JSRuntime
+@inject AttendanceService AttendanceService
+@inject HttpClient Http // Assuming HttpClient is already injected
+
+<video id="videoElement" @ref="videoElement" style="display: none;"></video> @* Hide the video element *@
+
+<h2>Employee Dashboard</h2>
+
+@code {
+ private ElementReference videoElement;
+ private DateTime StartTime;
+    private string ActivityDescription = string.Empty; // Add this line back
+ private DateTime EndTime; // Added EndTime property
+ private List<AttendanceRecord> attendanceRecords = new List<AttendanceRecord>(); // List to hold attendance records for the current employee
+ private Dictionary<string, TimeSpan> monthlyTotalHours = new Dictionary<string, TimeSpan>(); // Initialize the dictionary
+ private TimeSpan overallTotalHours = TimeSpan.Zero;
+ private System.Timers.Timer _alarmTimer = new System.Timers.Timer(); // Initialize the timer
+ private System.Timers.Timer _workDurationTimer = new System.Timers.Timer(); // Initialize the timer
+ private string _currentPhotoPath = string.Empty; // To store the path of the uploaded photo
+
+    protected override void OnInitialized()
+ {
+        // Initialize and load attendance records when the component is initialized
+        LoadAttendanceRecords();
+        _alarmTimer = new System.Timers.Timer(1800000); // 30 minutes
+ _alarmTimer.Elapsed += AlarmTimer_Elapsed; // Add the event handler
+ _alarmTimer.AutoReset = true; // Keep the timer running
+
+ // Initialize the work duration timer (it will be started in StartWork)
+ _workDurationTimer = new System.Timers.Timer(); 
+ _workDurationTimer.AutoReset = false; // Set to false so it only runs once
+    }
+
+    private async void AlarmTimer_Elapsed(object? sender, System.Timers.ElapsedEventArgs e)
+ {
+ await JSRuntime.InvokeVoidAsync("playAlarm");
+    }
+
+    private async void WorkDurationTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+    {
+        // This method will be called after 30 minutes
+
+        // Ensure the UI update happens on the main thread
+        await InvokeAsync(async () =>
+        {
+            // Automatically end work after 30 minutes
+            await EndWork();
+            StateHasChanged(); // Notify Blazor to re-render
+        });
+    }
+
+    private async Task StartWork()
+ {
+ if (string.IsNullOrWhiteSpace(ActivityDescription))
+ {
+ return; // Show validation message
+        }
+
+        // Start camera and take photo
+ await JSRuntime.InvokeVoidAsync("startCamera");
+ var photoDataUrl = await JSRuntime.InvokeAsync<string>("takePhoto");
+
+ // Send photoDataUrl to server-side endpoint to save
+ await UploadPhoto(photoDataUrl);
+ StartTime = DateTime.Now;
+        _workDurationTimer = new System.Timers.Timer(1800000); // Re-initialize for each work session
+        _workDurationTimer.Elapsed += WorkDurationTimer_Elapsed;
+    }
+
+    private async Task EndWork()
+ {
+ // Stop and dispose the work duration timer
+ _workDurationTimer?.Stop();
+ _workDurationTimer?.Dispose();
+
+ await JSRuntime.InvokeVoidAsync("pauseAlarm"); // Assuming you still want to pause any potential alarm
+ await JSRuntime.InvokeVoidAsync("stopCamera"); // Stop camera on end work
+
+        // Capture EndTime
+ EndTime = DateTime.Now;
+
+        // Create and populate the AttendanceRecord
+ var attendanceRecord = new AttendanceRecord
+ {
+            // You'll need to get the employee's username/identifier
+ EmployeeUsername = "CurrentEmployeeUsername", // TODO: Replace with actual way to get username
+ StartTime = StartTime,
+ EndTime = EndTime,
+ ActivityDescription = ActivityDescription,
+ PhotoPath = _currentPhotoPath
+        };
+
+        // Save the attendance record using the service
+ AttendanceService.AddRecord(attendanceRecord);
+
+        // Reset relevant properties
+ ActivityDescription = string.Empty;
+ StartTime = default;
+ EndTime = default;
+ _currentPhotoPath = string.Empty; // Reset photo path
+
+        // Reload attendance records to update the display
+ LoadAttendanceRecords();
+    }
+
+ public void Dispose()
+ {
+ _workDurationTimer?.Dispose(); // Dispose the duration timer in Dispose method
+ _alarmTimer?.Dispose(); // Dispose the alarm timer in Dispose method
+    }
+
+    private void LoadAttendanceRecords()
+ {
+        // TODO: Replace "CurrentEmployeeUsername" with the actual way to get the username
+ // Replace "CurrentEmployeeUsername" with the actual way to get the username
+ attendanceRecords = AttendanceService.GetRecordsByEmployee("CurrentEmployeeUsername");
+
+        // Calculate month-wise and overall total hours
+ CalculateAttendanceSummaries();
+    }
+
+    private async Task UploadPhoto(string photoDataUrl)
+ {
+ if (!string.IsNullOrEmpty(photoDataUrl))
+ {
+ try
+ {
+ // Send photo data to the server-side endpoint
+ var response = await Http.PostAsJsonAsync("api/PhotoUpload", photoDataUrl);
+ response.EnsureSuccessStatusCode();
+
+ var result = await response.Content.ReadFromJsonAsync<PhotoUploadResult>();
+ if (result != null && !string.IsNullOrEmpty(result.PhotoPath))
+ {
+ // Store the returned photo path
+ _currentPhotoPath = result.PhotoPath;
+                    // You might want to update the UI to show the photo here
+                }
+            }
+ catch (Exception ex)
+ {
+ // Handle errors during photo upload
+ Console.WriteLine($"Error uploading photo: {ex.Message}");
+ _currentPhotoPath = string.Empty; // Clear the photo path on error
+                // You might want to show an error message to the user
+            }
+        }
+ else
+ {
+ _currentPhotoPath = string.Empty; // Clear the photo path if no data
+        }
+    }
+
+    private void CalculateAttendanceSummaries()
+ {
+ monthlyTotalHours.Clear();
+ overallTotalHours = TimeSpan.Zero;
+
+        var recordsByMonth = attendanceRecords
+ .Where(r => r.EndTime != default) // Only consider completed records
+ .GroupBy(r => r.StartTime.ToString("yyyy-MM")); // Group records by year and month
+
+ foreach (var monthGroup in recordsByMonth)
+ {
+ var monthTotal = TimeSpan.FromMinutes(monthGroup.Sum(r => (r.EndTime - r.StartTime).TotalMinutes));
+ monthlyTotalHours[monthGroup.Key] = monthTotal;
+ overallTotalHours += monthTotal;
+        }
+    }
+
+    // Helper class to deserialize the JSON response from the photo upload endpoint
+ public class PhotoUploadResult
+ {
+ public required string PhotoPath { get; set; }
+
+ }
+}
+
+<h3>Your Attendance History</h3>
+
+@if (monthlyTotalHours.Count > 0)
+{
+    <h4>Monthly Summaries</h4>
+    <ul>
+        @foreach (var monthSummary in monthlyTotalHours.OrderByDescending(m => m.Key)) @* Display months in descending order *@
+ {
+            <li>@monthSummary.Key: @monthSummary.Value.ToString(@"hh\:mm") hours</li>
+        }
+    </ul>
+
+    <h4>Overall Total Hours</h4>
+ <p>@overallTotalHours.ToString(@"hh\:mm") hours</p>
+}
+
+@if (attendanceRecords != null && attendanceRecords.Any())
+{
+    <table>
+ <thead>
+ <tr>
+ <th>Start Time</th>
+ <th>End Time</th>
+ <th>Activity Description</th>
+ <th>Photo</th>
+ </tr>
+ </thead>
+ <tbody>
+ @foreach (var record in attendanceRecords.OrderByDescending(r => r.StartTime)) @* Display records in descending order by start time *@
+ {
+ <tr>
+ <td>@record.StartTime</td>
+ <td>@record.EndTime</td>
+ <td>@record.ActivityDescription</td>
+ <td>
+ @if (!string.IsNullOrEmpty(record.PhotoPath))
+ {
+ <img src="@record.PhotoPath" alt="Employee Photo" style="width: 100px; height: auto;" />
+ }
+ </td>
+ </tr>
+            }
+ </tbody>
+    </table>
+}
+else
+{
+    <p>No attendance records found.</p>
+}
